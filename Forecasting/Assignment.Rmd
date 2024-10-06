@@ -1,0 +1,1089 @@
+---
+title: "Assignment Notebook"
+output: html_notebook
+
+name: Jack Cleary
+
+Kaggle: 
+nickname: Jack Cleary
+username: jackcleary
+       
+Student ID: 19333982
+---
+
+-------------------------------QUESTION 1-----------------------------
+
+We start by running the ETS, AUTO_ARIMA and PROPHET algorithms on a training set, which is comprised of all of the data minus the last 18 steps. We then use these last 18 steps as a test set, and use cross validation to compare our models' forecasts for the last 18 steps with the actual values. We compute the Mean Absolute Error (MAE) from this comparison and then find the average MAE for all of the time series. An MAE of 0 would imply that the forecasted values were exactly identical to the actual values.
+
+When we have finished our calculations we will print a table comparing the averages from each of the three models.
+
+First, we run ETS:
+```{r}
+library(Metrics)
+library("forecast")
+
+#Initialize MAE list
+ETS_MAE_List <- c()
+
+for (i in 1:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name<- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  
+  #splitting into training and test
+  dataLength <- nrow(data)
+  trainIndex <- dataLength - 18
+  train <- data[0:trainIndex]
+  test <- data[(trainIndex+1):dataLength]
+  
+  #Run ETS
+  etsMod <- ets(train)
+  etsPred <- forecast(etsMod, h = 18)
+  
+  etsMAE <- mae(test, etsPred$mean)
+  ETS_MAE_List <- append(ETS_MAE_List, etsMAE)
+  
+}
+
+ets_mae <- mean(ETS_MAE_List)
+#0.6906419
+```
+This gives us an MAE of 0.6906419.
+
+Next we run AUTO-ARIMA:
+```{r}
+library(Metrics)
+library("forecast")
+
+#Initialize MAE list
+AA_MAE_List <- c()
+
+for (i in 1:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name <- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  
+  #splitting into training and test
+  dataLength <- nrow(data)
+  trainIndex <- dataLength - 18
+  train <- data[0:trainIndex]
+  test <- data[(trainIndex+1):dataLength]
+  
+  #Run AUTO-ARIMA
+  aaMod <- auto.arima(train)
+  aaPred = forecast(aaMod, h = 18)
+  
+  aaMAE <- mae(aaPred$mean,test)
+  AA_MAE_List <- append(AA_MAE_List,aaMAE)
+  
+}
+  
+aa_mae <- mean(AA_MAE_List)
+#0.6749696
+```
+This gives us an MAE of 0.6749696
+
+Lastly we run Prophet:
+```{r}
+library(Metrics)
+library("TSstudio")
+library("prophet")
+
+Pr_MAE_List <- c()
+
+for (i in 1:999){
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name <- paste(name,".csv",sep="")#add file extension
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  dataPr <- ts_to_prophet(ts.obj = data, start = as.Date("2000-01-01"))
+  
+  dataLength = nrow(dataPr)
+  trainIndex = 1:(dataLength - 18)
+  testIndex = (dataLength - 17):dataLength
+  trainPr = dataPr[trainIndex, ]
+  testPr = dataPr[testIndex, ]
+  
+  prMod <- prophet(trainPr, weekly.seasonality= F, daily.seasonality = F, n.changepoints = 24)
+  future <- make_future_dataframe(prMod, periods = 18, freq = "month", include_history = F)
+  prForecast <- predict(prMod, future)
+  prForecast$yhat
+  
+  prMAE <- mae(prForecast$yhat, testPr$y)
+  Pr_MAE_List[i] <- prMAE
+}
+
+prophet_mae <- mean(Pr_MAE_List)
+#0.9047088
+
+```
+This gives us an MAE of 0.9047088
+
+We now make a table of these three MAE values in order to compare:
+```{r}
+names <- c("ETS", "AUTO-ARIMA", "Prophet")
+MAEvals <- c(ets_mae, aa_mae, prophet_mae)
+colNames <- c("Model", "MAE")
+rowNames <- c("", "", "")
+t <- as.table(cbind(names, MAEvals))
+colnames(t) <- colNames
+rownames(t) <- rowNames
+t
+```
+Output Table:
+
+ Model      MAE      
+ ETS        0.6906419
+ AUTO-ARIMA 0.6749696
+ Prophet    0.9047088
+ 
+The lower the MAE value, the more accurate the model. Hence, as we can see the most accurate algorithm thus far is the AUTO-ARIMA model, followed by ETS and lastly Prophet is the least accurate.
+
+-------------------------------QUESTION 2-----------------------------
+
+We must now run the ETS, AUTO-ARIMA and Prophet algorithms to forecast the next 18 steps using all of the data for training. I will then post these forecasts to a .csv file and upload the three files to Kaggle.
+
+First, we run ETS
+```{r}
+
+h=18 # forecast horizon
+
+#Create first ts object
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",1,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+data <- ts(data = y, frequency = 12)
+
+#Run ETS
+etsMod <- ets(data)
+etsPred <- forecast(etsMod, h = 18)
+
+#Create data frame for predictions
+index = 1:h
+df <- cbind(index, as.matrix(etsPred$mean))
+
+for (i in 2:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name<- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12) 
+  
+  #Run ETS
+  etsMod <- ets(data)
+  etsPred <- forecast(etsMod, h = 18)
+
+  #Add predictions to data frame
+  df <-rbind(df,cbind(as.integer(nrow(df)+index), as.matrix(etsPred$mean)) )
+  print(i)
+}
+write.table(df, file ="my_prediction_ets.csv", 
+          col.names = c("Id","Predicted"),
+          sep=",",
+          row.names=FALSE)
+
+```
+The file my_prediction_ets.csv has been created.
+
+Next we run AUTO-ARIMA
+```{r}
+
+h=18 # forecast horizon
+
+#Create first ts object
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",1,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+data <- ts(data = y, frequency = 12)
+
+#Run AUTO-ARIMA
+aaMod <- auto.arima(data)
+aaPred <- forecast(aaMod, h = 18)
+
+#Create data frame for predictions
+index = 1:h
+df <- cbind(index, as.matrix(aaPred$mean))
+
+for (i in 2:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name<- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12) 
+  
+  #Run AUTO-ARIMA
+  aaMod <- auto.arima(data)
+  aaPred <- forecast(aaMod, h = 18)
+
+  #Add predictions to data frame
+  df <-rbind(df,cbind(as.integer(nrow(df)+index), as.matrix(aaPred$mean)) )
+  print(i)
+}
+write.table(df, file ="my_prediction_AA.csv", 
+          col.names = c("Id","Predicted"),
+          sep=",",
+          row.names=FALSE)
+
+```
+The file my_prediction_AA.csv has been created.
+
+Lastly we run Prophet
+```{r}
+library(Metrics)
+library("TSstudio")
+library("prophet")
+
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",1,sep="")
+name <- paste(name,".csv",sep="")#add file extension
+y <- as.matrix(read.csv(name))
+data <- ts(data = y, frequency = 12)
+dataPr <- ts_to_prophet(ts.obj = data, start = as.Date("2000-01-01"))
+
+prMod <- prophet(dataPr, weekly.seasonality= F, daily.seasonality = F, n.changepoints = 24)
+future <- make_future_dataframe(prMod, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(prMod, future)
+prForecast$yhat
+
+#Create data frame for predictions
+index = 1:h
+df <- cbind(index, as.matrix(prForecast$yhat))
+
+for (i in 2:999){
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name <- paste(name,".csv",sep="")#add file extension
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  dataPr <- ts_to_prophet(ts.obj = data, start = as.Date("2000-01-01"))
+  
+  prMod <- prophet(dataPr, weekly.seasonality= F, daily.seasonality = F, n.changepoints = 24)
+  future <- make_future_dataframe(prMod, periods = 18, freq = "month", include_history = F)
+  prForecast <- predict(prMod, future)
+  
+  df <- rbind(df, cbind((index + nrow(df)), prForecast$yhat))
+  print(i)
+}
+
+write.table(df, file ="my_prediction_Prophet.csv", 
+          col.names = c("Id","Predicted"),
+          sep=",",
+          row.names=FALSE)
+
+```
+The file my_prediction_Prophet.csv has been created.
+
+These files will all be uploaded to Kaggle.
+
+-------------------------------QUESTION 3-----------------------------
+
+The next stage is to alter some of the hyperparameters for each of the three algorithms in an attempt to improve their performance. The hyperparameters that I have chosen to examine for the ETS model are damped and lambda. I will also explore the effects of altering alpha, beta, gamma and phi, however the optimal input for these values would vary from one time series to the next. Seeing as we are analyzing 999 time series, while setting a specific value for these may decrease the average MAE, it is difficult to justify in a practical sense. Due to the fact that there are 999 different time series, the way to minimize the MAE would be to assign different parameters to the model for each of the 999 different time series, which would be far too time consuming. So in my attempt to improve the model, I will keep in mind that this is not the lowest possible overall MAE that could be achieved. 
+
+The 'damped' parameter can be assigned either TRUE or FALSE. If damped = TRUE, then a damped trend will be used which effectively means that any trend in the data will not be kept constant indefinitely into the future. Instead it will be "damped" by a certain degree, or reduced to a flat line at some point in the future. The degree at which the trend is damped depends on phi, a different parameter.
+
+The second parameter is lambda, which is the Box-Cox transformation parameter. Box-Cox transformation allows us to normalise data that is not necessarily normal. I will use trial and error to try and identify a value for lambda which lowers the MAE, and hence improves the accuracy of our model.
+
+We will now run ETS, adjusting each of the above named parameters and checking if this improves our original MAE.
+
+```{r}
+library(Metrics)
+library("forecast")
+#Initialize MAE list
+new_ETS_MAE_List <- c()
+  
+for (i in 1:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name<- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  
+  #splitting into training and test
+  dataLength <- nrow(data)
+  trainIndex <- dataLength - 18
+  train <- data[0:trainIndex]
+  test <- data[(trainIndex+1):dataLength]
+  
+  #Run ETS
+  etsMod <- ets(train, damped = T, lambda = 1.1)
+  etsPred <- forecast(etsMod, h = 18)
+  
+  etsMAE <- mae(test, etsPred$mean)
+  new_ETS_MAE_List <- append(new_ETS_MAE_List, etsMAE)
+  
+}
+
+new_ETS_MAE <- mean(new_ETS_MAE_List)
+#Original 
+#0.6906419 - no hyperparameters changed
+
+#0.6847241 - damped = T
+#0.6835615 - damped = T, lambda = 1
+#0.6788834 - damped = T, lambda = 1.1
+
+#Some other variations
+#0.6163631 - (damped = T, a = 0.1852, b = 0.00065, g = 0.001, phi = 0.9365)
+#0.6163704 - (damped = T, a = 0.1852, b = 0.0005, g = 0.001, phi = 0.9365)
+#0.6165063 - (damped = T, a = 0.19, b = 0.0001, g = 0.001, phi = 0.9365)
+
+```
+
+As we adjust these parameters the MAE fluctuates up and down. Using trial and error, we can see that using a damped trend always seems to result in a lower MAE. In the case of lambda, the optimal value seemed to be 1.1, and using this value the improved MAE which I achieved was 0.6788834, a decrease of about 0.012. 
+
+In order to try and decrease the MAE further, I also examined the 'alpha', 'beta', 'gamma' and 'phi' parameters. These are all smoothing parameters which can be assigned a value between 0 and 1. Alpha represents the coefficient for the level smoothing, beta the coefficient for the trend smoothing, gamma the coefficient for seasonality smoothing and lastly, as stated above, phi is the damping coefficient. As an example of how these coefficients work, let us suppose that we assign a very high value to beta, e.g. beta = 0.8. This would imply that our model will learn a lot from any trend in the series. Similarly if beta = 0.1, then our model will not learn very much from any trend that is in the series. 
+In this case, alpha will usually provide a lower MAE if it is in and around the 0.2 mark, or slightly below. Beta values must be lower than alpha, and actually in this case very very small values for beta resulted in a decrease of the MAE. Gamma had no effect on the MAE when alpha and beta were fixed, indicating that seasonality is probably not accounted for in these forecasts. And lastly, a very high value for phi resulted in a decrease of the MAE, indicating that trends were damped very rapidly. Altering these values resulted in an MAE of 0.6163631 - with the following inputs: damped = T, a = 0.1852, b = 0.00065, g = 0.001, phi = 0.9365.
+
+
+Next we will look at AUTO-ARIMA, again adjusting hyperparameters of the model and checking if this improves our original MAE. The hyperparameters I will examine in this instance are 'stepwise' and 'approximation'. 
+
+Stepwise can be assigned either TRUE or FALSE and it decides whether or not stepwise selection is used in identifying the appropriate model for a time series. When set to false, stepwise selection is not used and instead all models are searched over. This is a much slower process but is more accurate.
+
+Approximation is also assigned either TRUE or FALSE and if TRUE, then estimation is done using conditional sums of squares and the information criteria used for model selection are approximated. The final model is still computed using maximum likelihood estimation. 
+
+The defaults for both of these hyperparameters are set as such for rapid estimation of models for many time series. However in both instances it is more accurate to set them as FALSE, it will just require more time. 
+
+We will now run AUTO-ARIMA with both of these hyperparameters set to FALSE.
+
+```{r}
+library(Metrics)
+library("forecast")
+
+#Initialize MAE list
+new_AA_MAE_List <- c()
+
+for (i in 1:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name <- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  
+  #splitting into training and test
+  dataLength <- nrow(data)
+  trainIndex <- dataLength - 18
+  train <- data[0:trainIndex]
+  test <- data[(trainIndex+1):dataLength]
+  
+  #Run AUTO-ARIMA
+  aaMod <- auto.arima(train, stepwise = F, approximation = F)
+  aaPred = forecast(aaMod, h = 18)
+  
+  aaMAE <- mae(aaPred$mean,test)
+  new_AA_MAE_List <- append(new_AA_MAE_List,aaMAE)
+  
+  if(i%%50 == 0){
+    print(i)
+  }
+}
+new_aa_MAE <- mean(new_AA_MAE_List)
+
+#0.6749696 - Original
+
+#0.6672264 - step = F, approx = T **
+#0.6644761 - step = f, approx = f *
+
+
+```
+
+This results in an MAE of 0.6644761, which is a slight improvement on our original 0.6749696. Similar to ETS, there are other parameters which we can alter that would bring down our MAE, however it is not very practical to fix these parameters at one value for all different time series. For example, setting 'd', which is the order of first-differencing, to d = 1 would decrease MAE. But this may not be the optimal value for each of the time series and so setting it at a specific value would not make sense.
+
+Lastly, we will try to decrease the MAE of the Prophet algorithm by altering some hyper parameters. The parameters I have chosen to alter are changepoint.prior.scale and seasonlality.prior.scale. Changepoint prior scale determines the flexibility of the trend and in particular how much the trend changes at the trend changpoints. It usually varies roughly between 0.001 and 0.5, and I have selected to set it to 0.1. The seasonlality.prior.scale parameter is slightly similar, in that it controls the flexibility of the seasonality. Hence, a large value will allow the seasonality to fit large fluctuations, and a smaller value will decrease the magnitude of the seasonality. A reasonable range for this value is between 0.01 and 10, and I have selected to set this to 1.0.
+
+```{r}
+library(Metrics)
+library("TSstudio")
+library("prophet")
+
+Pr_MAE_List <- c()
+
+for (i in 1:999){
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name <- paste(name,".csv",sep="")#add file extension
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  dataPr <- ts_to_prophet(ts.obj = data, start = as.Date("2000-01-01"))
+  
+  dataLength = nrow(dataPr)
+  trainIndex = 1:(dataLength - 18)
+  testIndex = (dataLength - 17):dataLength
+  trainPr = dataPr[trainIndex, ]
+  testPr = dataPr[testIndex, ]
+  
+  prMod <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+  future <- make_future_dataframe(prMod, periods = 18, freq = "month", include_history = F)
+  prForecast <- predict(prMod, future)
+  prForecast$yhat
+  
+  prMAE <- mae(prForecast$yhat, testPr$y)
+  Pr_MAE_List[i] <- prMAE
+  
+  if(i%%50 == 0){
+    print(i)
+  }
+}
+
+new_Prophet_MAE <- mean(Pr_MAE_List)
+new_Prophet_MAE
+#0.9047088 - Original
+
+#0.9052651 - weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18
+#0.741797 - changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18
+```
+
+This decreased our MAE for this algorithm to 0.74197, which is a good improvement on our last. This could potentially be further improved by altering these and other parameters.
+
+Overall, we decreased the MAE of these models in every case, and so I will know rerun these algorithms using the entire dataset as my training set and predict the next 18 steps for each time series, using each algorithm. I will then upload these predictions to Kaggle.
+
+```{r}
+library(Metrics)
+library("TSstudio")
+library("prophet")
+
+#ETS
+
+h=18 # forecast horizon
+
+#Create first ts object
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",1,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+data <- ts(data = y, frequency = 12)
+
+#Run ETS
+etsMod <- ets(data, damped = T, lambda = 1.1)
+etsPred <- forecast(etsMod, h = 18)
+
+#Create data frame for predictions
+index = 1:h
+df <- cbind(index, as.matrix(etsPred$mean))
+
+for (i in 2:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name<- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12) 
+  
+  #Run ETS
+  etsMod <- ets(data, damped = T, lambda = 1.1)
+  etsPred <- forecast(etsMod, h = 18)
+
+  #Add predictions to data frame
+  df <-rbind(df,cbind(as.integer(nrow(df)+index), as.matrix(etsPred$mean)) )
+  print(i)
+}
+write.table(df, file ="my_prediction_ets_2.csv", 
+          col.names = c("Id","Predicted"),
+          sep=",",
+          row.names=FALSE)
+
+
+#AUTO-ARIMA
+#Create first ts object
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",1,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+data <- ts(data = y, frequency = 12)
+
+#Run AUTO-ARIMA
+aaMod <- auto.arima(data, stepwise = F, approximation = F)
+aaPred <- forecast(aaMod, h = 18)
+
+#Create data frame for predictions
+index = 1:h
+df <- cbind(index, as.matrix(aaPred$mean))
+
+for (i in 2:999){
+  
+  #Create ts object
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name<- paste(name,".csv",sep="")
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12) 
+  
+  #Run AUTO-ARIMA
+  aaMod <- auto.arima(data, stepwise = F, approximation = F)
+  aaPred <- forecast(aaMod, h = 18)
+
+  #Add predictions to data frame
+  df <-rbind(df,cbind(as.integer(nrow(df)+index), as.matrix(aaPred$mean)) )
+  print(i)
+}
+write.table(df, file ="my_prediction_AA_2.csv", 
+          col.names = c("Id","Predicted"),
+          sep=",",
+          row.names=FALSE)
+
+
+#Prophet
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",1,sep="")
+name <- paste(name,".csv",sep="")#add file extension
+y <- as.matrix(read.csv(name))
+data <- ts(data = y, frequency = 12)
+dataPr <- ts_to_prophet(ts.obj = data, start = as.Date("2000-01-01"))
+
+prMod <- prophet(dataPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(prMod, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(prMod, future)
+prForecast$yhat
+
+#Create data frame for predictions
+index = 1:h
+df <- cbind(index, as.matrix(prForecast$yhat))
+
+for (i in 2:999){
+  name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",i,sep="")
+  name <- paste(name,".csv",sep="")#add file extension
+  y <- as.matrix(read.csv(name))
+  data <- ts(data = y, frequency = 12)
+  dataPr <- ts_to_prophet(ts.obj = data, start = as.Date("2000-01-01"))
+  
+  prMod <- prophet(dataPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+  future <- make_future_dataframe(prMod, periods = 18, freq = "month", include_history = F)
+  prForecast <- predict(prMod, future)
+  
+  df <- rbind(df, cbind((index + nrow(df)), prForecast$yhat))
+  print(i)
+}
+
+write.table(df, file ="my_prediction_Prophet_2.csv", 
+          col.names = c("Id","Predicted"),
+          sep=",",
+          row.names=FALSE)
+
+```
+
+We now make a table of these three new MAE values, as well as the old ones in order to compare:
+```{r}
+names <- c("ETS", "AUTO-ARIMA", "Prophet")
+oldMAEvals <- c(ets_mae, aa_mae, prophet_mae)
+newMAEvals <- c(new_ETS_MAE, new_aa_MAE, new_Prophet_MAE)
+colNames <- c("Model", "Old MAE", "New MAE")
+rowNames <- c("", "", "")
+t <- as.table(cbind(names, oldMAEvals, newMAEvals))
+colnames(t) <- colNames
+rownames(t) <- rowNames
+t
+```
+Output Table:
+
+ Model       Old MAE     New MAE
+ ETS         0.6906419   0.6788834
+ AUTO-ARIMA  0.6749696   0.6644761
+ Prophet     0.9047088   0.74197
+
+
+
+-------------------------------QUESTION 4-----------------------------
+
+---------------------ETS-------------------------
+We will start by analysing graphics of the three best and three worst time series for the ETS algorithm. 
+```{r}
+library(forecast)
+
+#Find the indexes of the three best and three worst time series
+listETS <- new_ETS_MAE_List
+index <- 1:999
+dfETS <- cbind(index, listETS)
+dfETS <- dfETS[order(dfETS[,2]),]
+ETS1 <- as.integer(dfETS[1,1])
+ETS2 <- as.integer(dfETS[2,1])
+ETS3 <- as.integer(dfETS[3,1])
+
+dfETS <- dfETS[order(dfETS[,2], decreasing = T),]
+ETS4 <- as.integer(dfETS[1,1])
+ETS5 <- as.integer(dfETS[2,1])
+ETS6 <- as.integer(dfETS[3,1])
+
+#ETS1
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",ETS1,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataETS1 <- ts(data = y, frequency = 12)
+
+train <- dataETS1[1:(length(dataETS1)-18)]
+test <- dataETS1[(length(dataETS1)-17) : length(dataETS1)]
+modelETS1 <- ets(train, damped = T, lambda = 1.1)
+summary(modelETS1)
+pred = forecast(modelETS1, h=18)
+
+plotTestETS1 <- ts(test, start = (length(dataETS1)-17))
+
+modelETS1 %>% forecast(h=18) %>%
+  autoplot()+
+  autolayer(plotTestETS1, series = "Test Data")
+
+ggseasonplot(dataETS1, year.labels=TRUE, year.labels.left=TRUE, main = "ETS - Best TS 1")
+ggseasonplot(dataETS1, polar=TRUE, main = "ETS - Best TS 1")
+ggAcf(dataETS1)
+gghistogram(residuals(modelETS1))
+```
+As we can see from analysing this first set of graphs, the forecast performs very well and the predicted values are very close to the actual values, and the plotted test data lies inside the prediction intervals. There is quite clearly an upwward trend in the time series, and the resulting forecast follows this trend. It also has very narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are centred around zero, and are somewhat normally distributed although not very. The ACF plot again reflects the increasing trend in the data, however all of the lags lie outside the confidence interval and hence there is information that this model has not learned from. 
+```{r}
+#ETS2
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",ETS2,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataETS2 <- ts(data = y, frequency = 12)
+
+train <- dataETS2[1:(length(dataETS2)-18)]
+test <- dataETS2[(length(dataETS2)-17) : length(dataETS2)]
+modelETS2 <- ets(train, damped = T, lambda = 1.1)
+summary(modelETS2)
+pred = forecast(modelETS2, h=18)
+
+plotTestETS2 <- ts(test, start = (length(dataETS2)-17))
+
+modelETS2 %>% forecast(h=18) %>%
+  autoplot(main = "ETS - Best TS 2") +
+  autolayer(plotTestETS2, series = "Test Data")
+
+ggseasonplot(dataETS2, year.labels=TRUE, year.labels.left=TRUE, main = "ETS - Best TS 2")
+ggseasonplot(dataETS2, polar=TRUE, main = "ETS - Best TS 2")
+ggAcf(dataETS2)
+gghistogram(residuals(modelETS2))
+```
+Very similarly, from analysing this second set of graphs we can see that the forecast performs very well, the predicted values are very close to the actual values, and the plotted test data lies inside the prediction intervals. There is quite clearly an upwward trend in the time series, and the resulting forecast follows this trend. It also has very narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are centred around zero, and are somewhat normally distributed although not very. The ACF plot again reflects the increasing trend in the data, however all of the lags lie outside the confidence interval and hence there is information that this model has not learned from. 
+```{r}
+#ETS3
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",ETS3,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataETS3 <- ts(data = y, frequency = 12)
+
+train <- dataETS3[1:(length(dataETS3)-18)]
+test <- dataETS3[(length(dataETS3)-17) : length(dataETS3)]
+modelETS3 <- ets(train, damped = T, lambda = 1.1)
+summary(modelETS3)
+pred = forecast(modelETS3, h=18)
+
+plotTestETS3 <- ts(test, start = (length(dataETS3)-17))
+
+modelETS3 %>% forecast(h=18) %>%
+  autoplot(main = "ETS - Best TS 3") +
+  autolayer(plotTestETS3, series = "Test Data")
+
+ggseasonplot(dataETS3, year.labels=TRUE, year.labels.left=TRUE, main = "ETS - Best TS 3")
+ggseasonplot(dataETS3, polar=TRUE, main = "ETS - Best TS 3")
+ggAcf(dataETS3)
+gghistogram(residuals(modelETS3))
+```
+As we can see from analysing this third set of graphs, the forecast again performs very well and the predicted values are very close to the actual values although not quite as close as the previous examples. The plotted test data lies inside the prediction intervals indicating the models accuracy. There is quite clearly an upwward trend in the time series, and the resulting forecast follows this trend. It also has very narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are centred around zero, and are normally distributed. The ACF plot again reflects the increasing trend in the data, however all of the lags lie outside the confidence interval and hence there is information that this model has not learned from. 
+
+```{r}
+#ETS4
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",ETS4,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataETS4 <- ts(data = y, frequency = 12)
+
+train <- dataETS4[1:(length(dataETS4)-18)]
+test <- dataETS4[(length(dataETS4)-17) : length(dataETS4)]
+modelETS4 <- ets(train, damped = T, lambda = 1.1)
+summary(modelETS4)
+pred = forecast(modelETS4, h=18)
+
+plotTestETS4 <- ts(test, start = (length(dataETS4)-17))
+
+modelETS4 %>% forecast(h=18) %>%
+  autoplot(main = "ETS - Worst TS 1") +
+  autolayer(plotTestETS4, series = "Test Data")
+
+ggseasonplot(dataETS4, year.labels=TRUE, year.labels.left=TRUE, main = "ETS - Worst TS 1")
+ggseasonplot(dataETS4, polar=TRUE, main = "ETS - Worst TS 1")
+ggAcf(dataETS4)
+gghistogram(residuals(modelETS4))
+```
+Examination of this set of graphs shows a very poor performance by this algorithm. The very wide prediction intervals indicate a much larger variation in the training data. And the resulting forecast still not even lie in this wide prediction interval, demonstrating a large inaccuracy. While there is no trend in this data, there is a degree of seasonality eevident from the graph. The seasonal plots demonstrate this also, and also reflect the lack of any trend in the data. The resiudals are centred around zero and seem to be normally distributed. The ACF plot indicates that the correlations are not significantly different from zero, except for lag 1 where we see the highest ACF. Hence, less than five percent of the spikes are outside the bounds and so this could potentially be a white noise series.
+```{r}
+#ETS5
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",ETS5,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataETS5 <- ts(data = y, frequency = 12)
+
+train <- dataETS5[1:(length(dataETS5)-18)]
+test <- dataETS5[(length(dataETS5)-17) : length(dataETS5)]
+modelETS5 <- ets(train, damped = T, lambda = 1.1)
+summary(modelETS5)
+pred = forecast(modelETS5, h=18)
+
+plotTestETS5 <- ts(test, start = (length(dataETS5)-17))
+
+modelETS5 %>% forecast(h=18) %>%
+  autoplot(main = "ETS - Worst TS 2") +
+  autolayer(plotTestETS5, series = "Test Data")
+
+ggseasonplot(dataETS5, year.labels=TRUE, year.labels.left=TRUE, main = "ETS - Worst TS 2")
+ggseasonplot(dataETS5, polar=TRUE, main = "ETS - Worst TS 2")
+ggAcf(dataETS5)
+gghistogram(residuals(modelETS5))
+```
+Examination of this set of graphs shows another very poor performance by this algorithm. The very wide prediction intervals again indicate a much larger variation in the training data. The resulting forecast this time does mostly lie in this wide prediction interval, however it is still evident that there is a large degree of inaccuracy. While there is no trend in this data, there is a lot of seasonality eevident from the graph. The seasonal plots demonstrate this also, and also reflect the lack of any trend in the data. The months of MArch, November and December in particular have higher values on average than the other months. The resiudals are centred around zero and seem to be somewhat normally distributed. The ACF plot indicates that the correlations are significantly different from zero, with the lags 1, 11, 12, 13, 23 and 24 all lying outside the 95% confidence interval. This indicates that this is not a white noise series.
+
+```{r}
+#ETS6
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",ETS6,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataETS6 <- ts(data = y, frequency = 12)
+
+train <- dataETS6[1:(length(dataETS6)-18)]
+test <- dataETS6[(length(dataETS6)-17) : length(dataETS6)]
+modelETS6 <- ets(train, damped = T, lambda = 1.1)
+summary(modelETS6)
+pred = forecast(modelETS6, h=18)
+
+plotTestETS6 <- ts(test, start = (length(dataETS6)-17))
+
+modelETS6 %>% forecast(h=18) %>%
+  autoplot(main = "ETS - Worst TS 3") +
+  autolayer(plotTestETS6, series = "Test Data")
+
+ggseasonplot(dataETS6, year.labels=TRUE, year.labels.left=TRUE, main = "ETS - Worst TS 3")
+ggseasonplot(dataETS6, polar=TRUE, main = "ETS - Worst TS 3")
+ggAcf(dataETS6)
+gghistogram(residuals(modelETS6))
+```
+Examination of this set of graphs shows a very poor performance by this algorithm also. The very wide prediction intervals indicate a much larger variation in the training data. And the resulting forecast still does not even lie in this wide prediction interval, demonstrating a large inaccuracy. There is some trend in this data, but not very much seasonality. The seasonal plots demonstrate this too, and also reflect the lack of any trend in the data. The residuals are centred around zero and seem to be normally distributed. The ACF plot indicates that the correlations are not significantly different from zero, and they also reflect the trend that is visible in the data.
+
+From the above results, it can be inferred that this model learns well from trends in the data, but not as well from seasonality. This is evident in particular in the first three time series, where the forecast worked well. These graphs all showed upward trends in the data and the model performed well in these cases. We can also see it in the sixth graph, where the training set ended with a downward trend and the forecast continued on this path. The test set however, turned back upwards suddenly and the model failed to predict this.
+
+---------------------AUTO-ARIMA-------------------------
+```{r}
+#Find the indexes of the three best and three worst time series
+listAA <- new_AA_MAE_List
+index <- 1:999
+dfAA <- cbind(index, listAA)
+dfAA <- dfAA[order(dfAA[,2]),]
+AA1 <- as.integer(dfAA[1,1])
+AA2 <- as.integer(dfAA[2,1])
+AA3 <- as.integer(dfAA[3,1])
+
+dfAA <- dfAA[order(dfAA[,2], decreasing = T),]
+AA4 <- as.integer(dfAA[1,1])
+AA5 <- as.integer(dfAA[2,1])
+AA6 <- as.integer(dfAA[3,1])
+
+#AA1
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",AA1,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataAA1 <- ts(data = y, frequency = 12)
+
+train <- dataAA1[1:(length(dataAA1)-18)]
+test <- dataAA1[(length(dataAA1)-17) : length(dataAA1)]
+modelAA1 <- auto.arima(train, stepwise = F, approximation = F)
+summary(modelAA1)
+pred = forecast(modelAA1, h=18)
+
+plotTestAA1 <- ts(test, start = (length(dataAA1)-17))
+
+modelAA1 %>% forecast(h=18) %>%
+  autoplot()+
+  autolayer(plotTestAA1, series = "Test Data")
+
+ggseasonplot(dataAA1, year.labels=TRUE, year.labels.left=TRUE, main = "AA - Best TS 1")
+ggseasonplot(dataAA1, polar=TRUE, main = "AA - Best TS 1")
+ggAcf(dataAA1)
+gghistogram(residuals(modelAA1))
+```
+As we can see from analysing this set of graphs, the forecast performs very well, the predicted values are very close to the actual values, and the plotted test data lies inside the prediction intervals. There is quite clearly an upwward trend in the time series, and the resulting forecast follows this trend. It also has extremely narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are centred around zero, and are somewhat normally distributed although not very. The ACF plot again reflects the increasing trend in the data, however all of the lags lie outside the confidence interval and hence there is information that this model has not learned from.
+
+```{r}
+#AA2
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",AA2,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataAA2 <- ts(data = y, frequency = 12)
+
+train <- dataAA2[1:(length(dataAA2)-18)]
+test <- dataAA2[(length(dataAA2)-17) : length(dataAA2)]
+modelAA2 <- auto.arima(train, stepwise = F, approximation = F)
+summary(modelAA2)
+pred = forecast(modelAA2, h=18)
+
+plotTestAA2 <- ts(test, start = (length(dataAA2)-17))
+
+modelAA2 %>% forecast(h=18) %>%
+  autoplot(main = "AA - Best TS 2") +
+  autolayer(plotTestAA2, series = "Test Data")
+
+ggseasonplot(dataAA2, year.labels=TRUE, year.labels.left=TRUE, main = "AA - Best TS 2")
+ggseasonplot(dataAA2, polar=TRUE, main = "AA - Best TS 2")
+ggAcf(dataAA2)
+gghistogram(residuals(modelAA2))
+```
+Very similarly, from analysing this second set of graphs we can see that the forecast performs very well, the predicted values are very close to the actual values, and the plotted test data lies inside the prediction intervals. There is quite clearly an upwward trend in the time series, and the resulting forecast follows this trend. It also has very narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are centred around zero, and are somewhat normally distributed although not very. The ACF plot again reflects the increasing trend in the data, however all of the lags lie outside the confidence interval and hence there is information that this model has not learned from. 
+
+```{r}
+#AA3
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",AA3,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataAA3 <- ts(data = y, frequency = 12)
+
+train <- dataAA3[1:(length(dataAA3)-18)]
+test <- dataAA3[(length(dataAA3)-17) : length(dataAA3)]
+modelAA3 <- auto.arima(train, stepwise = F, approximation = F)
+summary(modelAA3)
+pred = forecast(modelAA3, h=18)
+
+plotTestAA3 <- ts(test, start = (length(dataAA3)-17))
+
+modelAA3 %>% forecast(h=18) %>%
+  autoplot(main = "AA - Best TS 3") +
+  autolayer(plotTestAA3, series = "Test Data")
+
+ggseasonplot(dataAA3, year.labels=TRUE, year.labels.left=TRUE, main = "AA - Best TS 3")
+ggseasonplot(dataAA3, polar=TRUE, main = "AA - Best TS 3")
+ggAcf(dataAA3)
+gghistogram(residuals(modelAA3))
+```
+Examination of this third set of graphs shows that the forecast performs very well, the predicted values are very close to the actual values, and the plotted test data lies inside the prediction intervals. There is a degree of trend evident in the data, however there is much more seasonality. It also has wider prediction intervals which reflects the larger variation in the data compared to the first two. The seasonal plots would indicate an element of seasonality, with many of the lines overlapping. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are centred around zero, and are somewhat normally distributed although not very. The ACF plot again reflects the increasing trend in the data, and the s;ightly 'scallpoped' shape shows the degree of seasonality. However all of the lags again lie outside the confidence interval and hence there is information that this model has not learned from. 
+
+```{r}
+#AA4
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",AA4,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataAA4 <- ts(data = y, frequency = 12)
+
+train <- dataAA4[1:(length(dataAA4)-18)]
+test <- dataAA4[(length(dataAA4)-17) : length(dataAA4)]
+modelAA4 <- auto.arima(train, stepwise = F, approximation = F)
+summary(modelAA4)
+pred = forecast(modelAA4, h=18)
+
+plotTestAA4 <- ts(test, start = (length(dataAA4)-17))
+
+modelAA4 %>% forecast(h=18) %>%
+  autoplot(main = "AA - Worst TS 1") +
+  autolayer(plotTestAA4, series = "Test Data")
+
+ggseasonplot(dataAA4, year.labels=TRUE, year.labels.left=TRUE, main = "AA - Worst TS 1")
+ggseasonplot(dataAA4, polar=TRUE, main = "AA - Worst TS 1")
+ggAcf(dataAA4)
+gghistogram(residuals(modelAA4))
+```
+Examination of this fourth set of graphs shows that the forecast performs very poorly, the predicted values are very different to the actual values, and the plotted test data lies completely outside the prediction intervals. There is not very much trend nor seasonality evident from this graph, aside from a slight increasing trend. The prediction intervals are not overly wide, which reflects the minimal variation in the data. The seasonal plots would indicate a small degree of seasonality but very little, with many of the lines overlapping. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are relatively centred around zero, but are not normally distributed. The ACF plot indicates an increasing trend in the data.
+
+```{r}
+#AA5
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",AA5,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataAA5 <- ts(data = y, frequency = 12)
+
+train <- dataAA5[1:(length(dataAA5)-18)]
+test <- dataAA5[(length(dataAA5)-17) : length(dataAA5)]
+modelAA5 <- auto.arima(train, stepwise = F, approximation = F)
+summary(modelAA5)
+pred = forecast(modelAA5, h=18)
+
+plotTestAA5 <- ts(test, start = (length(dataAA5)-17))
+
+modelAA5 %>% forecast(h=18) %>%
+  autoplot(main = "AA - Worst TS 2") +
+  autolayer(plotTestAA5, series = "Test Data")
+
+ggseasonplot(dataAA5, year.labels=TRUE, year.labels.left=TRUE, main = "AA - Worst TS 2")
+ggseasonplot(dataAA5, polar=TRUE, main = "AA - Worst TS 2")
+ggAcf(dataAA5)
+gghistogram(residuals(modelAA5))
+```
+Examination of this fifth set of graphs shows that the forecast performs very poorly, the predicted values are very different to the actual values, and the plotted test data lies completely outside the prediction intervals. There is not very much trend nor seasonality evident from this graph, aside from a slight increasing trend. The prediction intervals are relatively wide, which reflects the variation in the data. The seasonal plots would indicate a small degree of seasonality but very little, with many of the lines overlapping. These plots also demonstrate the increasing trend in the data. Analysis of the residuals plot indicates that they are relatively centred around zero, and are quite normally distributed. The ACF plot indicates an increasing trend in the data.
+
+```{r}
+#AA6
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",AA6,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataAA6 <- ts(data = y, frequency = 12)
+
+train <- dataAA6[1:(length(dataAA6)-18)]
+test <- dataAA6[(length(dataAA6)-17) : length(dataAA6)]
+modelAA6 <- auto.arima(train, stepwise = F, approximation = F)
+summary(modelAA6)
+pred = forecast(modelAA6, h=18)
+
+plotTestAA6 <- ts(test, start = (length(dataAA6)-17))
+
+modelAA6 %>% forecast(h=18) %>%
+  autoplot(main = "AA - Worst TS 3") +
+  autolayer(plotTestAA6, series = "Test Data")
+
+ggseasonplot(dataAA6, year.labels=TRUE, year.labels.left=TRUE, main = "AA - Worst TS 3")
+ggseasonplot(dataAA6, polar=TRUE, main = "AA - Worst TS 3")
+
+ggAcf(dataAA6)
+gghistogram(residuals(modelAA6))
+```
+Examination of this sixth set of graphs shows that the forecast performs very poorly, the predicted values are very different to the actual values, and the plotted test data lies completely outside the prediction intervals. There is not very much trend nor seasonality evident from this graph. The prediction intervals are not overly wide, which reflects the variation in the data. The seasonal plots would indicate a small degree of seasonality but very little, with some of the lines overlapping. Analysis of the residuals plot indicates that they are centred around zero, and are relatively normally distributed. The ACF plot indicates an increasing trend in the data. 
+
+---------------------Prophet-------------------------
+
+```{r}
+library(forecast)
+#Find the indexes of the three best and three worst time series
+listPR <- Pr_MAE_List
+index <- 1:999
+dfPR <- cbind(index, listPR)
+dfPR <- dfPR[order(dfPR[,2]),]
+PR1 <- as.integer(dfPR[1,1])
+PR2 <- as.integer(dfPR[2,1])
+PR3 <- as.integer(dfPR[3,1])
+
+dfPR <- dfPR[order(dfPR[,2], decreasing = T),]
+PR4 <- as.integer(dfPR[1,1])
+PR5 <- as.integer(dfPR[2,1])
+PR6 <- as.integer(dfPR[3,1])
+
+#PR1
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",819,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataPR1 <- ts(data = y, frequency = 12)
+
+train <- dataPR1[1:(length(dataPR1)-18)]
+test <- dataPR1[(length(dataPR1)-17) : length(dataPR1)]
+modelPR1 <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(modelPR1, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(modelPR1, future)
+
+plotTestPR1 <- ts(test, start = (length(dataPR1)-17))
+
+dyplot.prophet(modelPR1, fcst = prForecast)
+
+ggseasonplot(dataPR1, year.labels=TRUE, year.labels.left=TRUE, main = "PR - Best TS 1")
+ggseasonplot(dataPR1, polar=TRUE, main = "PR - Best TS 1")
+ggAcf(dataPR1)
+```
+As we can see from analysing this first set of graphs, the forecast performs quite well and the prediction intervals are quite narrow. There is quite clearly an upwward trend in the time series, and the resulting forecast follows this trend. It also has very narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. The ACF plot again reflects the increasing trend in the data, however almost all of the lags lie outside the confidence interval and hence there is information that this model has not learned from. 
+
+```{r}
+#PR2
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",PR2,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataPR2 <- ts(data = y, frequency = 12)
+
+train <- dataPR2[1:(length(dataPR2)-18)]
+test <- dataPR2[(length(dataPR2)-17) : length(dataPR2)]
+modelPR2 <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(modelPR2, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(modelPR2, future)
+
+plotTestPR2 <- ts(test, start = (length(dataPR2)-17))
+
+dyplot.prophet(modelPR2, fcst = prForecast)
+
+ggseasonplot(dataPR2, year.labels=TRUE, year.labels.left=TRUE, main = "PR - Best TS 2")
+ggseasonplot(dataPR2, polar=TRUE, main = "PR - Best TS 2")
+ggAcf(dataPR2)
+```
+Very similarly, from analysing this second set of graphs we can see that the forecast performs quite well and the rediction intervals are quite narrow. There is quite clearly an upward trend in the time series, and the resulting forecast follows this trend. It also has very narrow prediction intervals which demonstrates the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping at all. These plots also demonstrate the increasing trend in the data. The ACF plot again reflects the increasing trend in the data, however all of the lags lie outside the confidence interval and hence there is information that this model has not learned from. 
+
+```{r}
+#PR3
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",PR3,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataPR3 <- ts(data = y, frequency = 12)
+
+train <- dataPR3[1:(length(dataPR3)-18)]
+test <- dataPR3[(length(dataPR3)-17) : length(dataPR3)]
+modelPR3 <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(modelPR3, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(modelPR3, future)
+
+plotTestPR3 <- ts(test, start = (length(dataPR3)-17))
+
+dyplot.prophet(modelPR3, fcst = prForecast)
+
+ggseasonplot(dataPR3, year.labels=TRUE, year.labels.left=TRUE, main = "PR - Best TS 3")
+ggseasonplot(dataPR3, polar=TRUE, main = "PR - Best TS 3")
+ggAcf(dataPR3)
+```
+Examination of this third set of graphs shows that the forecast performs quite well and the prediction intervals are quite narrow. There is an upward trend evident in the data. It also has quite narrow prediction intervals which reflects the lack of variation in the data. The seasonal plots would indicate almost zero seasonality, with none of the lines overlapping. These plots also demonstrate the increasing trend in the data. The ACF plot again reflects the increasing trend in the data, and the s;ightly 'scallpoped' shape shows the degree of seasonality. However all of the lags again lie outside the confidence interval and hence there is information that this model has not learned from. 
+
+```{r}
+#PR4
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",PR4,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataPR4 <- ts(data = y, frequency = 12)
+
+train <- dataPR4[1:(length(dataPR4)-18)]
+test <- dataPR4[(length(dataPR4)-17) : length(dataPR4)]
+modelPR4 <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(modelPR4, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(modelPR4, future)
+
+plotTestPR4 <- ts(test, start = (length(dataPR4)-17))
+
+dyplot.prophet(modelPR4, prForecast)
+
+ggseasonplot(dataPR4, year.labels=TRUE, year.labels.left=TRUE, main = "PR - Worst TS 1")
+ggseasonplot(dataPR4, polar=TRUE, main = "PR - Worst TS 1")
+ggAcf(dataPR4)
+```
+Examination of this set of graphs shows a very poor performance by this algorithm. While there is no trend in this data, there is a degree of seasonality evident from the graph. The seasonal plots demonstrate this also, and also reflect the upward trend in the data. The ACF plot demonstrates the upward trend in the data, and also a degree of seasonality.
+
+```{r}
+#PR5
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",PR5,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataPR5 <- ts(data = y, frequency = 12)
+
+train <- dataPR5[1:(length(dataPR5)-18)]
+test <- dataPR5[(length(dataPR5)-17) : length(dataPR5)]
+modelPR5 <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(modelPR5, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(modelPR5, future)
+
+plotTestPR5 <- ts(test, start = (length(dataPR5)-17))
+
+dyplot.prophet(modelPR5, fcst = prForecast)
+
+ggseasonplot(dataPR5, year.labels=TRUE, year.labels.left=TRUE, main = "PR - Worst TS 2")
+ggseasonplot(dataPR5, polar=TRUE, main = "PR - Worst TS 2")
+ggAcf(dataPR5)
+```
+Examination of this set of graphs shows a very poor performance by this algorithm. While there is no trend in this data, there is a degree of seasonality evident from the graph. The seasonal plots demonstrate this also, and also reflect the upward trend in the data. The ACF plot demonstrates the upward trend in the data, and also a degree of seasonality.
+
+```{r}
+#PR6
+name <- paste("/Users/jackcleary/Desktop/Forecasting/train/train",PR6,sep="")
+name <- paste(name,".csv",sep="")
+y <- as.matrix(read.csv(name))
+dataPR6 <- ts(data = y, frequency = 12)
+
+train <- dataPR6[1:(length(dataPR6)-18)]
+test <- dataPR6[(length(dataPR6)-17) : length(dataPR6)]
+modelPR6 <- prophet(trainPr, changepoint.prior.scale = 0.1, seasonality.prior.scale = 1.0, weekly.seasonality = F, daily.seasonality = F, yearly.seasonality = T, n.changepoints = 18)
+future <- make_future_dataframe(modelPR6, periods = 18, freq = "month", include_history = F)
+prForecast <- predict(modelPR6, future)
+
+plotTestPR6 <- ts(test, start = (length(dataPR6)-17))
+
+dyplot.prophet(modelPR6, fcst = prForecast)
+
+ggseasonplot(dataPR6, year.labels=TRUE, year.labels.left=TRUE, main = "PR - Worst TS 3")
+ggseasonplot(dataPR6, polar=TRUE, main = "PR - Worst TS 3")
+ggAcf(dataPR6)
+
+```
+Examination of this set of graphs shows a very poor performance by this algorithm. From this graph we can see both an upward trend and a degree of seasonality. The seasonal plots demonstrate this also, and also reflect the upward trend in the data. The ACF plot demonstrates the upward trend in the data, and also a degree of seasonality.
+
+Based on the results of each of these analyses, it appears that the most accurate model was AUTO-ARIMA, as it was able to capture both the trend and seasonality in a time series and infer the next steps very accurately in a lot of cases. ETS seemed to miss some of the seasonality that AUTO-ARIMA picked up on, and Prophet was overall the least accurate method.
